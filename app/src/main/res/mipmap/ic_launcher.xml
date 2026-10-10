@@ -1,15 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Android 7.x (bez ikon adaptacyjnych): fioletowe kółko z tą samą kartką. -->
+<!-- Android 7.x (bez ikon adaptacyjnych): czerwone kółko z tą samą kartką. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="48dp"
     android:height="48dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <path android:fillColor="#6A1B9A" android:pathData="M54,4a50,50 0,1 1,0 100a50,50 0,1 1,0 -100z" />
+    <path android:fillColor="#D7261E" android:pathData="M54,4a50,50 0,1 1,0 100a50,50 0,1 1,0 -100z" />
     <path android:fillColor="#FFFFFF" android:pathData="M34,28h30l10,10v42h-40z" />
-    <path android:fillColor="#D1B3E6" android:pathData="M64,28v10h10z" />
-    <path android:fillColor="#6A1B9A" android:pathData="M45,36h18v4h-6.5v12h6.5v4h-18v-4h6.5v-12h-6.5z" />
-    <path android:fillColor="#6A1B9A" android:pathData="M34,61h40v13h-40z" />
+    <path android:fillColor="#F4B6B2" android:pathData="M64,28v10h10z" />
+    <path android:fillColor="#D7261E" android:pathData="M45,36h18v4h-6.5v12h6.5v4h-18v-4h6.5v-12h-6.5z" />
+    <path android:fillColor="#D7261E" android:pathData="M34,61h40v13h-40z" />
     <path android:fillColor="#FFFFFF" android:pathData="M40.5,64h2v8h-2z M40.5,64h7v2h-7z M45.5,64h2v5h-2z M40.5,67h7v2h-7z M60.5,64h2v8h-2z M60.5,64h7v2h-7z M60.5,67h5.5v2h-5.5z" />
     <path android:fillColor="#FFFFFF" android:fillType="evenOdd" android:pathData="M50.5,64h5l2,2v4l-2,2h-5z M52.5,66h2.2l0.8,0.8v2.4l-0.8,0.8h-2.2z" />
 </vector>

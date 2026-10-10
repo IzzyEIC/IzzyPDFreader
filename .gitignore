@@ -4,3 +4,9 @@
 build/
 local.properties
 *.iml
+
+# Klucz podpisu — NIGDY nie wysyłać do repo
+signing/
+*.p12
+*.jks
+*.keystore

@@ -15,4 +15,6 @@ Minimalna aplikacja na Androida do podglądu plików PDF i Word (.docx). Bez rek
 
 **Android Studio:** File → Open → ten folder → Run (albo Build → Build APK).
 
-**GitHub Actions:** po wypchnięciu repo na GitHub workflow `Build APK` zbuduje plik, do pobrania w zakładce Actions → artefakt `pdf-reader-apk`.
+**GitHub Actions:** każde wypchnięcie na `main` buduje aplikację i publikuje `IzzyPDFreader.apk` w zakładce **Releases**. APK jest podpisany stałym kluczem z sekretów repo (`SIGNING_KEYSTORE_BASE64`, `SIGNING_PASSWORD`), więc nowe wersje instalują się na starsze.
+
+**Klucz podpisu:** kopia leży lokalnie w folderze `signing/` (wykluczony z gita). Nie usuwaj go — bez tego klucza nie da się wydać aktualizacji; trzeba by odinstalować aplikację i zainstalować od nowa.

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">PDF Reader</string>
+    <string name="open">Otwórz PDF</string>
+    <string name="error_open">Nie udało się otworzyć pliku</string>
+    <string name="error_protected">Plik jest zabezpieczony hasłem</string>
+</resources>

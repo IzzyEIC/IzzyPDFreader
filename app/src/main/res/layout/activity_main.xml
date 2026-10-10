@@ -43,7 +43,7 @@
             android:layout_marginTop="24dp"
             android:text="@string/recent"
             android:textAppearance="@android:style/TextAppearance.Material.Subhead"
-            android:textColor="#C62828" />
+            android:textColor="#6A1B9A" />
 
         <ListView
             android:id="@+id/recent"

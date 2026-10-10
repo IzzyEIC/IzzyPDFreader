@@ -1,4 +1,4 @@
-# PDF Reader
+# Izzy PDF Reader
 
 Minimalna aplikacja na Androida do podglądu plików PDF i Word (.docx). Bez reklam, bez uprawnień, bez zależności — korzysta z wbudowanego `PdfRenderer` (Android 7.0+).
 

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Wersja jednokolorowa dla motywowanych ikon (Android 13+). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path android:fillColor="#FFFFFF" android:fillType="evenOdd"
+        android:pathData="M34,28h30l10,10v42h-40zM45,46v4h6.5v16h-6.5v4h18v-4h-6.5v-16h6.5v-4z" />
+</vector>

@@ -4,6 +4,11 @@ Minimalna aplikacja na Androida do podglądu plików PDF. Bez reklam, bez uprawn
 
 - Otwieranie przyciskiem **Otwórz PDF** albo z innej aplikacji (menedżer plików, mail, przeglądarka → „Otwórz w…”).
 - Strony przewijane w pionie, dopasowane do szerokości ekranu.
+- Przybliżanie: szczypanie dwoma palcami albo podwójne stuknięcie.
+- Wyszukiwanie tekstu z podświetleniem wyników (Android 15, a na Androidzie 11–14 po aktualnych aktualizacjach systemowych Google Play; na starszych przycisk szukania jest ukryty).
+- Zapamiętywanie miejsca, w którym skończono czytać każdy plik.
+- Lista ostatnio otwieranych plików (przytrzymaj pozycję, aby ją usunąć).
+- Przejście do strony o podanym numerze (menu ⋮).
 
 ## Budowanie
 

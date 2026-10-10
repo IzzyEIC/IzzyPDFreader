@@ -4,21 +4,45 @@
     android:layout_height="match_parent"
     android:fitsSystemWindows="true">
 
-    <ListView
+    <com.pdfreader.ZoomListView
         android:id="@+id/pages"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
+        android:clipToPadding="false"
         android:divider="@android:color/transparent"
         android:dividerHeight="8dp"
+        android:fastScrollEnabled="true"
         android:padding="8dp"
-        android:clipToPadding="false"
         android:scrollbarStyle="outsideOverlay"
-        android:fastScrollEnabled="true" />
+        android:visibility="gone" />
 
-    <Button
-        android:id="@+id/open"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="center"
-        android:text="@string/open" />
+    <LinearLayout
+        android:id="@+id/home"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@android:color/white"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <Button
+            android:id="@+id/open"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/open" />
+
+        <TextView
+            android:id="@+id/recent_title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:text="@string/recent"
+            android:textAppearance="@android:style/TextAppearance.Material.Subhead"
+            android:textColor="#C62828" />
+
+        <ListView
+            android:id="@+id/recent"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
+    </LinearLayout>
 </FrameLayout>

@@ -27,6 +27,9 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
 import android.view.inputmethod.EditorInfo
+import android.webkit.WebResourceRequest
+import android.webkit.WebView
+import android.webkit.WebViewClient
 import android.widget.AbsListView
 import android.widget.ArrayAdapter
 import android.widget.BaseAdapter
@@ -60,6 +63,7 @@ class MainActivity : Activity() {
     @Volatile private var renderGen = 0
 
     private var currentUri: Uri? = null
+    private var isDocx = false
     private var pageSizes: List<Pair<Int, Int>> = emptyList()
 
     private val pending = HashSet<Int>()
@@ -72,7 +76,13 @@ class MainActivity : Activity() {
     private var matches: List<Match> = emptyList()
     private var currentMatch = -1
 
+    // Wyszukiwanie w dokumentach Word robi sam WebView.
+    private var webMatchCount = 0
+    private var webMatchIndex = 0
+    private var pendingWebScroll: Float? = null
+
     private lateinit var list: ZoomListView
+    private lateinit var web: WebView
     private lateinit var home: View
     private lateinit var recentTitle: View
     private lateinit var recentList: ListView
@@ -92,6 +102,8 @@ class MainActivity : Activity() {
         home = findViewById(R.id.home)
         recentTitle = findViewById(R.id.recent_title)
         recentList = findViewById(R.id.recent)
+        web = findViewById(R.id.web)
+        setupWebView()
 
         list.adapter = adapter
         list.onZoomEnd = { adapter.notifyDataSetChanged() }
@@ -145,7 +157,46 @@ class MainActivity : Activity() {
         docGen++
         worker.execute { closeDocument() }
         worker.shutdown()
+        web.destroy()
     }
+
+    private fun setupWebView() {
+        web.settings.apply {
+            javaScriptEnabled = false
+            allowFileAccess = false
+            allowContentAccess = false
+            setSupportZoom(true)
+            builtInZoomControls = true
+            displayZoomControls = false
+        }
+        web.webViewClient = object : WebViewClient() {
+            // Linki z dokumentu otwieramy w przeglądarce, nie w podglądzie.
+            override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
+                runCatching { startActivity(Intent(Intent.ACTION_VIEW, request.url)) }
+                return true
+            }
+
+            override fun onPageFinished(view: WebView, url: String?) {
+                val fraction = pendingWebScroll ?: return
+                pendingWebScroll = null
+                // Chwila na ułożenie treści, zanim znana jest jej wysokość.
+                web.postDelayed({
+                    if (isDocx) web.scrollTo(0, (fraction * webContentHeight()).toInt())
+                }, 300)
+            }
+        }
+        web.setFindListener { activeIndex, count, isDone ->
+            if (!isDone || !isDocx) return@setFindListener
+            webMatchIndex = activeIndex
+            webMatchCount = count
+            if (count == 0 && query.isNotBlank()) toast(R.string.not_found)
+            updateMenu()
+            updateSubtitle()
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun webContentHeight() = web.contentHeight * web.scale
 
     // ---------- Menu ----------
 
@@ -155,7 +206,7 @@ class MainActivity : Activity() {
             setOnQueryTextListener(object : SearchView.OnQueryTextListener {
                 override fun onQueryTextSubmit(text: String): Boolean {
                     clearFocus()
-                    if (text == query && matches.isNotEmpty()) stepMatch(1) else startSearch(text)
+                    if (text == query && matchCount() > 0) stepMatch(1) else startSearch(text)
                     return true
                 }
 
@@ -200,19 +251,22 @@ class MainActivity : Activity() {
 
     // Widoczność ustawiana bezpośrednio — invalidateOptionsMenu zwinęłoby otwarte pole wyszukiwania.
     private fun updateMenu() {
-        val docOpen = currentUri != null && pageSizes.isNotEmpty()
-        searchItem?.isVisible = docOpen && searchSupported()
-        gotoItem?.isVisible = docOpen
-        prevItem?.isVisible = matches.size > 1
-        nextItem?.isVisible = matches.size > 1
+        val docOpen = currentUri != null && (isDocx || pageSizes.isNotEmpty())
+        searchItem?.isVisible = docOpen && (isDocx || searchSupported())
+        gotoItem?.isVisible = docOpen && !isDocx
+        prevItem?.isVisible = matchCount() > 1
+        nextItem?.isVisible = matchCount() > 1
     }
+
+    private fun matchCount() = if (isDocx) webMatchCount else matches.size
 
     // ---------- Otwieranie / zamykanie ----------
 
     private fun pickFile() {
         val pick = Intent(Intent.ACTION_OPEN_DOCUMENT)
             .addCategory(Intent.CATEGORY_OPENABLE)
-            .setType("application/pdf")
+            .setType("*/*")
+            .putExtra(Intent.EXTRA_MIME_TYPES, arrayOf(MIME_PDF, MIME_DOCX))
         startActivityForResult(pick, REQUEST_PICK)
     }
 
@@ -235,6 +289,29 @@ class MainActivity : Activity() {
         val gen = docGen
         worker.execute {
             closeDocument()
+            when (sniff(uri)) {
+                null -> {
+                    main.post { if (gen == docGen) openFailed(uri, R.string.error_open, forget = true) }
+                    return@execute
+                }
+                Kind.OLD_DOC -> {
+                    main.post { if (gen == docGen) openFailed(uri, R.string.error_old_doc, forget = false) }
+                    return@execute
+                }
+                Kind.DOCX -> {
+                    val html = try {
+                        contentResolver.openInputStream(uri)?.use { DocxConverter.convert(it) }
+                    } catch (e: Throwable) {
+                        null
+                    }
+                    main.post {
+                        if (gen != docGen) return@post
+                        if (html != null) showDocx(uri, html) else openFailed(uri, R.string.error_open, forget = false)
+                    }
+                    return@execute
+                }
+                Kind.PDF -> {}
+            }
             val newFd = runCatching { contentResolver.openFileDescriptor(uri, "r") }.getOrNull()
             if (newFd == null) {
                 main.post { if (gen == docGen) openFailed(uri, R.string.error_open, forget = true) }
@@ -264,8 +341,46 @@ class MainActivity : Activity() {
         }
     }
 
+    private enum class Kind { PDF, DOCX, OLD_DOC }
+
+    /** Rozpoznaje typ pliku po pierwszych bajtach (nazwa/MIME bywają mylące). Wątek worker. */
+    private fun sniff(uri: Uri): Kind? = runCatching {
+        contentResolver.openInputStream(uri)?.use { stream ->
+            val head = ByteArray(4)
+            var n = 0
+            while (n < head.size) {
+                val r = stream.read(head, n, head.size - n)
+                if (r < 0) break
+                n += r
+            }
+            val b = head.map { it.toInt() and 0xFF }
+            when (b) {
+                listOf(0x50, 0x4B, 0x03, 0x04) -> Kind.DOCX // ZIP
+                listOf(0xD0, 0xCF, 0x11, 0xE0) -> Kind.OLD_DOC // stary .doc (OLE)
+                else -> Kind.PDF
+            }
+        }
+    }.getOrNull()
+
+    private fun showDocx(uri: Uri, html: String) {
+        currentUri = uri
+        isDocx = true
+        val name = displayName(uri)
+        addRecent(uri.toString(), name)
+        title = name
+        home.visibility = View.GONE
+        list.visibility = View.GONE
+        web.visibility = View.VISIBLE
+        pendingWebScroll = savedPosition(uri)?.second
+        web.loadDataWithBaseURL(null, html, "text/html", "utf-8", null)
+        updateMenu()
+        updateSubtitle()
+    }
+
     private fun showDocument(uri: Uri, sizes: List<Pair<Int, Int>>) {
         currentUri = uri
+        isDocx = false
+        web.visibility = View.GONE
         pageSizes = sizes
         val name = displayName(uri)
         addRecent(uri.toString(), name)
@@ -297,6 +412,10 @@ class MainActivity : Activity() {
         query = ""
         matches = emptyList()
         currentMatch = -1
+        isDocx = false
+        webMatchCount = 0
+        pendingWebScroll = null
+        web.clearMatches()
         searchItem?.collapseActionView()
         list.resetZoom()
         adapter.notifyDataSetChanged()
@@ -316,6 +435,7 @@ class MainActivity : Activity() {
         title = getString(R.string.app_name)
         actionBar?.subtitle = null
         list.visibility = View.GONE
+        web.visibility = View.GONE
         home.visibility = View.VISIBLE
         val recents = loadRecents()
         recentTitle.visibility = if (recents.isEmpty()) View.GONE else View.VISIBLE
@@ -410,7 +530,13 @@ class MainActivity : Activity() {
     }
 
     private fun updateSubtitle() {
-        if (currentUri == null || pageSizes.isEmpty()) return
+        if (currentUri == null) return
+        if (isDocx) {
+            actionBar?.subtitle =
+                if (webMatchCount > 0) getString(R.string.match_of, webMatchIndex + 1, webMatchCount) else null
+            return
+        }
+        if (pageSizes.isEmpty()) return
         actionBar?.subtitle = when {
             currentMatch >= 0 -> getString(R.string.match_of, currentMatch + 1, matches.size)
             else -> getString(R.string.page_of, currentPage() + 1, pageSizes.size)
@@ -424,16 +550,26 @@ class MainActivity : Activity() {
 
     private fun savePosition() {
         val uri = currentUri ?: return
+        if (isDocx) {
+            val height = webContentHeight()
+            if (height > 0) prefs.edit().putString(KEY_POS + uri, "0:${web.scrollY / height}").apply()
+            return
+        }
         val child = list.getChildAt(0) ?: return
         if (child.height <= 0) return
         val fraction = -child.top.toFloat() / child.height
         prefs.edit().putString(KEY_POS + uri, "${list.firstVisiblePosition}:$fraction").apply()
     }
 
+    /** Zapisana pozycja: numer strony i ułamek (dla Worda — ułamek całego dokumentu). */
+    private fun savedPosition(uri: Uri): Pair<Int, Float>? {
+        val saved = prefs.getString(KEY_POS + uri, null)?.split(":") ?: return null
+        val page = saved.getOrNull(0)?.toIntOrNull() ?: return null
+        return page to (saved.getOrNull(1)?.toFloatOrNull() ?: 0f)
+    }
+
     private fun restorePosition(uri: Uri) {
-        val saved = prefs.getString(KEY_POS + uri, null)?.split(":") ?: return
-        val page = saved.getOrNull(0)?.toIntOrNull() ?: return
-        val fraction = saved.getOrNull(1)?.toFloatOrNull() ?: 0f
+        val (page, fraction) = savedPosition(uri) ?: return
         list.post {
             if (currentUri != uri || page >= pageSizes.size) return@post
             scrollToPage(page, (fraction * itemHeight(page)).toInt())
@@ -494,6 +630,13 @@ class MainActivity : Activity() {
     }
 
     private fun startSearch(text: String) {
+        if (isDocx) {
+            query = text
+            webMatchCount = 0
+            updateMenu()
+            if (text.isBlank()) web.clearMatches() else web.findAllAsync(text)
+            return
+        }
         val gen = ++searchGen
         query = text
         matches = emptyList()
@@ -534,6 +677,10 @@ class MainActivity : Activity() {
     }
 
     private fun stepMatch(delta: Int) {
+        if (isDocx) {
+            if (webMatchCount > 0) web.findNext(delta > 0)
+            return
+        }
         if (matches.isEmpty()) return
         currentMatch = (currentMatch + delta).mod(matches.size)
         refreshHighlights()
@@ -550,6 +697,8 @@ class MainActivity : Activity() {
     }
 
     private fun clearSearch() {
+        web.clearMatches()
+        webMatchCount = 0
         searchGen++
         query = ""
         matches = emptyList()
@@ -606,6 +755,8 @@ class MainActivity : Activity() {
 
     companion object {
         private const val REQUEST_PICK = 1
+        private const val MIME_PDF = "application/pdf"
+        private const val MIME_DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
         private const val ID_SEARCH = 1
         private const val ID_PREV = 2
         private const val ID_NEXT = 3
